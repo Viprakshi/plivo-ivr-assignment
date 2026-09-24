@@ -1,0 +1,894 @@
+````markdown
+# Plivo IVR Assignment
+
+A demo Interactive Voice Response (IVR) application built using the **Plivo Voice API**, **Node.js**, and **Express**.
+
+The application demonstrates outbound calling, OTP-based caller authentication, multi-level DTMF IVR navigation, language selection, audio playback, invalid-input handling, and live associate call forwarding.
+
+---
+
+## Features
+
+- 📞 Outbound call initiation using the Plivo Voice API
+- 🔐 Four-digit OTP authentication
+- 🔄 Automatic OTP retry for incorrect input
+- 🚫 IVR access only after successful authentication
+- 🌐 Level 1 language selection:
+  - Press `1` → English
+  - Press `2` → Spanish
+- 📋 Level 2 action menu:
+  - Press `1` → Play a short audio message
+  - Press `2` → Connect to a live associate
+- 🔢 DTMF input handling
+- ⚠️ Graceful handling of invalid inputs
+- 🗣️ Text-to-speech using Plivo XML
+- 🔊 Public MP3 audio playback
+- ☎️ Call forwarding using Plivo `<Dial>`
+- 🌍 Public webhook exposure using ngrok
+- 🔒 Credentials and configuration stored using environment variables
+
+---
+
+## Architecture
+
+The application consists of three main components:
+
+```text
+                    ┌─────────────────────┐
+                    │     Node.js /       │
+                    │       Express       │
+                    └──────────┬──────────┘
+                               │
+                         Plivo SDK/API
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │       Plivo         │
+                    │     Voice API       │
+                    └──────────┬──────────┘
+                               │
+                         Outbound Call
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    User's Phone     │
+                    └──────────┬──────────┘
+                               │
+                              DTMF
+                               │
+                               ▼
+                         IVR Webhooks
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    Node.js Server    │
+                    └─────────────────────┘
+````
+
+Since the Express server runs locally, **ngrok** is used to expose the application through a public HTTPS URL:
+
+```text
+Plivo
+  │
+  ▼
+Public ngrok URL
+  │
+  ▼
+localhost:3000
+  │
+  ▼
+Express Application
+```
+
+---
+
+## IVR Call Flow
+
+The complete call flow is:
+
+```text
+Outbound Call
+      │
+      ▼
+   Answer
+      │
+      ▼
+  Enter 4-digit OTP
+      │
+      ├───────────────┐
+      │               │
+    Wrong            Correct
+      │               │
+      ▼               ▼
+    Retry       Language Menu
+                    │
+             ┌──────┴──────┐
+             │             │
+           Press 1       Press 2
+           English       Spanish
+             │             │
+             └──────┬──────┘
+                    │
+                    ▼
+              Action Menu
+                    │
+             ┌──────┴──────┐
+             │             │
+           Press 1       Press 2
+             │             │
+             ▼             ▼
+       Play Audio      Live Associate
+             │             │
+             ▼             ▼
+          Hangup        Call Bridge
+```
+
+---
+
+# Project Structure
+
+```text
+plivo-ivr-assignment/
+│
+├── src/
+│   ├── server.js
+│   ├── config.js
+│   └── ivr.js
+│
+├── public/
+│   └── README.md
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── README.md
+├── package.json
+└── package-lock.json
+```
+
+> `node_modules/` is created locally after installing dependencies and is excluded from Git.
+
+---
+
+# Technologies Used
+
+* **Node.js**
+* **Express.js**
+* **Plivo Voice API**
+* **Plivo Node.js SDK**
+* **Plivo XML**
+* **DTMF**
+* **ngrok**
+* **dotenv**
+* **JavaScript**
+
+---
+
+# Prerequisites
+
+Before running the application, install:
+
+* Node.js
+* npm
+* A Plivo account
+* A Plivo phone number capable of making outbound calls
+* ngrok
+
+You will also need:
+
+* Plivo Auth ID
+* Plivo Auth Token
+* Plivo phone number
+* Target/receiver phone number
+* Associate phone number
+* Four-digit OTP
+* Public HTTPS base URL
+
+---
+
+# Installation
+
+Clone the repository:
+
+```bash
+git clone <YOUR_GITHUB_REPOSITORY_URL>
+```
+
+Navigate into the project:
+
+```bash
+cd plivo-ivr-assignment
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+---
+
+# Environment Configuration
+
+Create a `.env` file in the project root.
+
+Use `.env.example` as a template:
+
+```env
+PLIVO_AUTH_ID=your_auth_id
+PLIVO_AUTH_TOKEN=your_auth_token
+PLIVO_NUMBER=your_plivo_number
+TARGET_NUMBER=your_target_number
+ASSOCIATE_NUMBER=your_associate_number
+OTP=your_4_digit_otp
+BASE_URL=https://your-ngrok-url.ngrok-free.dev
+PORT=3000
+```
+
+## Environment Variables
+
+| Variable           | Description                                  |
+| ------------------ | -------------------------------------------- |
+| `PLIVO_AUTH_ID`    | Plivo account Auth ID                        |
+| `PLIVO_AUTH_TOKEN` | Plivo account Auth Token                     |
+| `PLIVO_NUMBER`     | Plivo number used for outbound calls         |
+| `TARGET_NUMBER`    | Phone number that receives the demo call     |
+| `ASSOCIATE_NUMBER` | Number used for the live associate option    |
+| `OTP`              | Four-digit OTP in DDMM format                |
+| `BASE_URL`         | Public HTTPS URL pointing to the application |
+| `PORT`             | Local Express server port                    |
+
+> **Security:** Never commit the `.env` file or expose the Plivo Auth Token publicly.
+
+---
+
+# Running the Application
+
+## 1. Start the Node.js Server
+
+```bash
+node src/server.js
+```
+
+The server runs on:
+
+```text
+http://localhost:3000
+```
+
+Expected output:
+
+```text
+--------------------------------
+       PLIVO IVR SERVER
+--------------------------------
+Server: http://localhost:3000
+--------------------------------
+```
+
+---
+
+## 2. Start ngrok
+
+Open another terminal:
+
+```bash
+ngrok http 3000
+```
+
+ngrok will provide a public HTTPS URL similar to:
+
+```text
+https://example.ngrok-free.dev
+```
+
+Update `.env`:
+
+```env
+BASE_URL=https://example.ngrok-free.dev
+```
+
+Restart the Node.js server after changing `.env`.
+
+> Keep ngrok running while testing the application. If the ngrok endpoint goes offline, Plivo will not be able to reach the IVR webhooks.
+
+---
+
+# Testing
+
+## Health Check
+
+Verify that the Express server is running:
+
+```bash
+curl http://localhost:3000
+```
+
+Expected response:
+
+```json
+{
+  "service": "Plivo IVR",
+  "status": "running"
+}
+```
+
+---
+
+## Test the Public Answer Webhook
+
+Verify that Plivo can reach the public endpoint:
+
+```bash
+curl -i https://YOUR_NGROK_URL/answer
+```
+
+Expected result:
+
+```text
+HTTP/1.1 200 OK
+```
+
+The response should contain Plivo XML.
+
+---
+
+# Trigger an Outbound Call
+
+The `/call` endpoint initiates the outbound call.
+
+Using the configured target number:
+
+```bash
+curl -X POST http://localhost:3000/call
+```
+
+On Windows PowerShell:
+
+```powershell
+curl.exe -X POST http://localhost:3000/call
+```
+
+The application then follows:
+
+```text
+Node.js
+   │
+   ▼
+Plivo API
+   │
+   ▼
+Outbound Call
+   │
+   ▼
+Target Phone
+```
+
+A successful request returns a response similar to:
+
+```json
+{
+  "success": true,
+  "message": "Outbound call initiated successfully.",
+  "requestUuid": "..."
+}
+```
+
+---
+
+# IVR Implementation
+
+## 1. Outbound Call
+
+The `/call` endpoint creates a Plivo client:
+
+```javascript
+const client = new plivo.Client(
+    config.plivoAuthId,
+    config.plivoAuthToken
+);
+```
+
+It then creates an outbound call:
+
+```javascript
+await client.calls.create(
+    config.plivoNumber,
+    targetNumber,
+    `${config.baseUrl}/answer`,
+    {
+        answerMethod: "GET"
+    }
+);
+```
+
+The answer URL tells Plivo where to request instructions after the call is answered.
+
+---
+
+## 2. Answer Endpoint
+
+When the receiver answers:
+
+```text
+GET /answer
+```
+
+The server generates Plivo XML using:
+
+```javascript
+answerXml()
+```
+
+The response starts the OTP authentication flow.
+
+The caller hears:
+
+```text
+Welcome to InspireWorks.
+Please enter your four digit OTP.
+```
+
+The application uses Plivo's `GetDigits` functionality to collect four DTMF digits.
+
+---
+
+## 3. OTP Authentication
+
+The entered digits are sent to:
+
+```text
+POST /verify-otp
+```
+
+The application compares the received digits with the configured OTP.
+
+### Incorrect OTP
+
+```text
+User enters incorrect OTP
+          │
+          ▼
+    /verify-otp
+          │
+          ▼
+     OTP mismatch
+          │
+          ▼
+"OTP is incorrect. Please try again."
+          │
+          ▼
+      Enter OTP again
+```
+
+The user remains in the authentication stage until the correct OTP is entered.
+
+### Correct OTP
+
+```text
+User enters correct OTP
+          │
+          ▼
+    /verify-otp
+          │
+          ▼
+Authentication successful
+          │
+          ▼
+   Language Menu
+```
+
+The IVR menu is therefore inaccessible until authentication succeeds.
+
+---
+
+## 4. Level 1 — Language Selection
+
+After successful authentication, the caller hears:
+
+```text
+Press 1 for English.
+Press 2 for Spanish.
+```
+
+The selection is sent to:
+
+```text
+POST /language
+```
+
+The application branches based on the DTMF input:
+
+```text
+              Language Menu
+                    │
+             ┌──────┴──────┐
+             │             │
+          Press 1        Press 2
+             │             │
+          English        Spanish
+```
+
+Invalid inputs are handled by informing the caller and repeating the language menu.
+
+---
+
+## 5. Level 2 — Action Menu
+
+After selecting a language, the caller is presented with:
+
+```text
+Press 1 to hear a short message.
+Press 2 to speak to a live associate.
+```
+
+The selection is sent to:
+
+```text
+POST /action
+```
+
+The selected language is passed along with the request so the appropriate language-specific response can be generated.
+
+---
+
+## 6. Audio Playback
+
+If the caller presses `1`:
+
+```text
+Press 1
+   │
+   ▼
+Text-to-Speech
+   │
+   ▼
+Play MP3
+   │
+   ▼
+Goodbye message
+   │
+   ▼
+Hangup
+```
+
+The application uses:
+
+* `Speak` for text-to-speech
+* `Play` for the audio file
+* `Hangup` to terminate the call
+
+---
+
+## 7. Live Associate
+
+If the caller presses `2`:
+
+```text
+Press 2
+   │
+   ▼
+Connection message
+   │
+   ▼
+Plivo Dial
+   │
+   ▼
+Associate Number
+```
+
+The application uses Plivo's `Dial` functionality to connect the caller with the configured associate number.
+
+---
+
+# DTMF Handling
+
+DTMF input is handled at three stages.
+
+### OTP
+
+```text
+4 digits
+```
+
+### Language Selection
+
+```text
+1 → English
+2 → Spanish
+```
+
+### Action Selection
+
+```text
+1 → Audio
+2 → Associate
+```
+
+Invalid selections are handled gracefully by repeating the relevant prompt.
+
+---
+
+# API Endpoints
+
+| Method     | Endpoint      | Purpose                       |
+| ---------- | ------------- | ----------------------------- |
+| `GET`      | `/`           | Server health check           |
+| `POST`     | `/call`       | Initiate outbound call        |
+| `GET/POST` | `/answer`     | Start OTP authentication      |
+| `GET/POST` | `/verify-otp` | Validate OTP                  |
+| `GET/POST` | `/language`   | Handle language selection     |
+| `GET/POST` | `/action`     | Handle final action selection |
+
+---
+
+# File Responsibilities
+
+## `src/server.js`
+
+Responsible for:
+
+* Initializing Express
+* Loading the Plivo SDK
+* Starting the HTTP server
+* Initiating outbound calls
+* Handling Plivo webhook requests
+* Reading DTMF input
+* Returning generated Plivo XML
+
+---
+
+## `src/ivr.js`
+
+Contains the IVR business logic.
+
+Responsible for:
+
+* Generating the initial OTP prompt
+* Validating OTP input
+* Generating the language menu
+* Generating the second-level menu
+* Handling audio playback
+* Handling associate forwarding
+* Handling invalid DTMF input
+
+---
+
+## `src/config.js`
+
+Responsible for loading configuration from environment variables using `dotenv`.
+
+---
+
+## `.env`
+
+Contains local credentials and environment-specific configuration.
+
+This file should never be committed to Git.
+
+---
+
+## `.env.example`
+
+Provides a template for the required environment variables without exposing real credentials.
+
+---
+
+# Example Plivo XML Flow
+
+The application dynamically generates XML responses similar to:
+
+```xml
+<Response>
+    <GetDigits
+        action="https://your-public-url/verify-otp"
+        method="POST"
+        numDigits="4">
+        <Speak>
+            Welcome to InspireWorks.
+            Please enter your four digit OTP.
+        </Speak>
+    </GetDigits>
+</Response>
+```
+
+After successful authentication, the next XML response contains the language-selection menu.
+
+The XML is generated dynamically based on the caller's input.
+
+---
+
+# Security
+
+Sensitive configuration is stored using environment variables.
+
+The following should never be committed:
+
+```text
+.env
+node_modules/
+```
+
+The repository uses `.gitignore` to exclude them.
+
+Before pushing the project to GitHub, verify:
+
+```bash
+git status
+```
+
+The `.env` file and `node_modules` directory should not appear as files to commit.
+
+If a Plivo Auth Token is accidentally exposed, it should be revoked or rotated immediately.
+
+---
+
+# Troubleshooting
+
+## Call Immediately Ends After Answering
+
+Check whether the public webhook is reachable:
+
+```bash
+curl -i https://YOUR_NGROK_URL/answer
+```
+
+The endpoint should return:
+
+```text
+HTTP/1.1 200 OK
+```
+
+If you receive:
+
+```text
+ERR_NGROK_3200
+```
+
+the ngrok endpoint is offline.
+
+Restart ngrok:
+
+```bash
+ngrok http 3000
+```
+
+Update:
+
+```env
+BASE_URL=https://NEW_NGROK_URL
+```
+
+Restart the Node.js server and test `/answer` again.
+
+---
+
+## Plivo Cannot Reach the Server
+
+Verify:
+
+1. Node.js is running.
+2. ngrok is running.
+3. `BASE_URL` matches the current ngrok URL.
+4. `/answer` returns HTTP `200`.
+5. The local server is listening on port `3000`.
+
+---
+
+## OTP Is Not Being Received
+
+Make sure Express is configured to parse URL-encoded data:
+
+```javascript
+app.use(express.urlencoded({ extended: true }));
+```
+
+Also verify that the `GetDigits` action URL points to:
+
+```text
+/verify-otp
+```
+
+---
+
+## Invalid DTMF Input
+
+If the caller enters an unexpected digit, the application returns an invalid-selection message and presents the relevant menu again.
+
+---
+
+# Testing Checklist
+
+The following scenarios should be tested before submission:
+
+* [x] Server health check
+* [x] Outbound call initiation
+* [x] Call answer webhook
+* [x] OTP prompt
+* [x] Incorrect OTP
+* [x] OTP retry
+* [x] Correct OTP
+* [x] English selection
+* [x] Spanish selection
+* [x] Audio playback
+* [x] Associate forwarding
+* [x] Invalid language input
+* [x] Invalid action input
+* [x] Public webhook accessibility
+* [x] Environment variables
+* [x] `.env` excluded from Git
+* [x] `node_modules` excluded from Git
+
+---
+
+# Demo Flow
+
+The recommended demonstration sequence is:
+
+```text
+1. Start Node.js server
+2. Start ngrok
+3. Trigger outbound call
+4. Answer the call
+5. Enter an incorrect OTP
+6. Show the retry prompt
+7. Enter the correct OTP
+8. Select English
+9. Select the audio option
+10. Demonstrate audio playback
+11. Start another call
+12. Authenticate again
+13. Select the associate option
+14. Demonstrate call forwarding
+```
+
+---
+
+# Assignment Requirements Covered
+
+| Requirement                   | Implementation                          |
+| ----------------------------- | --------------------------------------- |
+| Outbound call                 | Plivo Voice API                         |
+| Target phone number           | Environment configuration               |
+| Four-digit OTP                | Plivo `GetDigits`                       |
+| OTP based on DDMM             | Configured through environment variable |
+| Retry incorrect OTP           | `/verify-otp`                           |
+| IVR only after authentication | OTP validation gate                     |
+| English selection             | Level 1, option `1`                     |
+| Spanish selection             | Level 1, option `2`                     |
+| Audio playback                | Plivo `Play`                            |
+| Live associate                | Plivo `Dial`                            |
+| Multi-level DTMF              | OTP → Language → Action                 |
+| Invalid input handling        | Re-prompt logic                         |
+| Plivo XML                     | Dynamically generated in `ivr.js`       |
+| Outbound call trigger         | `/call` endpoint                        |
+| Public webhook                | ngrok                                   |
+| Configuration security        | `.env` + `.gitignore`                   |
+
+---
+
+# Future Improvements
+
+For a production deployment, the application could be extended with:
+
+* Maximum OTP retry limits
+* OTP expiration
+* Secure OTP generation instead of a static OTP
+* Persistent user/session management
+* Database-backed authentication
+* Webhook signature validation
+* Rate limiting
+* Structured logging
+* Production HTTPS deployment
+* Secret management using a dedicated secrets manager
+* Monitoring and alerting
+* A frontend interface for initiating calls
+
+---
+
+# License
+
+This project was created as a technical assignment demonstration for a Plivo-based IVR application.
+
+```
+```
